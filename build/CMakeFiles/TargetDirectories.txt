@@ -1,0 +1,3 @@
+C:/Users/chiar/OneDrive/Documenti/universita/Magistrale/Parallel_computing/elaborato_OpenMP/build/CMakeFiles/elaborato_OpenMP.dir
+C:/Users/chiar/OneDrive/Documenti/universita/Magistrale/Parallel_computing/elaborato_OpenMP/build/CMakeFiles/edit_cache.dir
+C:/Users/chiar/OneDrive/Documenti/universita/Magistrale/Parallel_computing/elaborato_OpenMP/build/CMakeFiles/rebuild_cache.dir
