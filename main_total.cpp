@@ -111,7 +111,7 @@ void PrintSummary(const size_t word_bigram_count, const size_t word_trigram_coun
 // SEQUENTIAL VERSION
 void SequentialExecution(const string& folder, int repeat_count) {
 
-    // Clear the output files
+    // Clear the output files - uncomment to save n-grams to file 
     /*ofstream("word_bigrams.txt", ios::trunc).close();
     ofstream("word_trigrams.txt", ios::trunc).close();
     ofstream("char_bigrams.txt", ios::trunc).close();
@@ -153,6 +153,7 @@ void SequentialExecution(const string& folder, int repeat_count) {
             unordered_map<string, int> char_bigrams = ComputeCharNGrams(chars, 2);
             unordered_map<string, int> char_trigrams = ComputeCharNGrams(chars, 3);
 
+            // uncomment to save n-grams to file 
             /*SaveNGramsToFile(word_bigrams, "word_bigrams.txt");
             SaveNGramsToFile(word_trigrams, "word_trigrams.txt");
             SaveNGramsToFile(char_bigrams, "char_bigrams.txt");
@@ -189,106 +190,16 @@ void SequentialExecution(const string& folder, int repeat_count) {
 
 
 // PARALLEL VERSION
-void ParallelExecution_old(const string& folder, int repeat_count) {
-    size_t total_word_bigram_count = 0, total_word_trigram_count = 0;
-    size_t total_char_bigram_count = 0, total_char_trigram_count = 0;
-    size_t word_bigram_count = 0, word_trigram_count = 0;
-    size_t char_bigram_count = 0, char_trigram_count = 0;
-
-    /*ofstream("word_bigrams.txt", ios::trunc).close();
-    ofstream("word_trigrams.txt", ios::trunc).close();
-    ofstream("char_bigrams.txt", ios::trunc).close();
-    ofstream("char_trigrams.txt", ios::trunc).close(); */
-
-    // Load each .txt file once, then replicate the list repeat_count times to simulate a larger dataset without repeated filesystem access
-
-    vector<fs::path> base_files;
-    for (const auto& entry : fs::directory_iterator(folder)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".txt") {
-            base_files.push_back(entry.path());
-        }
-    }
-
-    vector<fs::path> files;
-    for (int k = 0; k < repeat_count; k++) {
-        files.insert(files.end(), base_files.begin(), base_files.end());
-    }
-
-
-    unordered_map<string, int> unique_word_bigrams, unique_word_trigrams;
-    unordered_map<string, int> unique_char_bigrams, unique_char_trigrams;
-
-
-    // Start a parallel section
-#pragma omp parallel
-    {
-        // Each thread creates its own local variables, avoiding conflicts in shared memory
-        unordered_map<string, int> local_word_bigrams, local_word_trigrams;
-        unordered_map<string, int> local_char_bigrams, local_char_trigrams;
-
-#pragma omp for schedule(dynamic)
-        for (size_t i = 0; i < files.size(); ++i) {
-            ifstream file(files[i]);
-            if (file) {
-                string text((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-                string preprocessed_text = PreprocessText(text);
-
-                vector<string> words = TokenizeWords(preprocessed_text);
-                vector<char> chars = TokenizeCharacters(preprocessed_text);
-
-                local_word_bigrams = ComputeWordNGrams(words, 2);
-                local_word_trigrams = ComputeWordNGrams(words, 3);
-                local_char_bigrams = ComputeCharNGrams(chars, 2);
-                local_char_trigrams = ComputeCharNGrams(chars, 3);
-
-            }
-
-            // each thread has its own local results. Now we need to merge them without creating race conditions.
-            // Critical section: exclusive access. Each thread enters one at a time and updates
-#pragma omp critical
-            {
-                for (const auto& [ngram, count] : local_word_bigrams) unique_word_bigrams[ngram] += count;
-                for (const auto& [ngram, count] : local_word_trigrams) unique_word_trigrams[ngram] += count;
-                for (const auto& [ngram, count] : local_char_bigrams) unique_char_bigrams[ngram] += count;
-                for (const auto& [ngram, count] : local_char_trigrams) unique_char_trigrams[ngram] += count;
-
-                // Count the total frequency of each n-gram
-                // lambda function: p is an element of the map, with p.first being the bigram and p.second its frequency
-                // It returns sum + p.second, that is, it adds the frequency of the bigram to the total sum.
-                total_word_bigram_count += accumulate(local_word_bigrams.begin(), local_word_bigrams.end(), 0,
-                    [](const int sum, const pair<string, int>& p) { return sum + p.second; });
-                total_word_trigram_count += accumulate(local_word_trigrams.begin(), local_word_trigrams.end(), 0,
-                    [](const int sum, const pair<string, int>& p) { return sum + p.second; });
-                total_char_bigram_count += accumulate(local_char_bigrams.begin(), local_char_bigrams.end(), 0,
-                    [](const int sum, const pair<string, int>& p) { return sum + p.second; });
-                total_char_trigram_count += accumulate(local_char_trigrams.begin(), local_char_trigrams.end(), 0,
-                    [](const int sum, const pair<string, int>& p) { return sum + p.second; });
-
-            }
-        } // end for
-
-        // Counting the number of unique n-grams
-        word_bigram_count = unique_word_bigrams.size();
-        word_trigram_count = unique_word_trigrams.size();
-        char_bigram_count = unique_char_bigrams.size();
-        char_trigram_count = unique_char_trigrams.size();
-
-        //SaveNGramsToFile(unique_word_bigrams, "word_bigrams.txt");
-        //SaveNGramsToFile(unique_word_trigrams, "word_trigrams.txt");
-        //SaveNGramsToFile(unique_char_bigrams, "char_bigrams.txt");
-        //SaveNGramsToFile(unique_char_trigrams, "char_trigrams.txt");
-
-    } // end parallel section
-
-    PrintSummary(word_bigram_count, word_trigram_count, char_bigram_count, char_trigram_count,
-                 total_word_bigram_count, total_word_trigram_count, total_char_bigram_count, total_char_trigram_count);
-}
-
 void ParallelExecution(const string& folder, int repeat_count) {
     size_t total_word_bigram_count = 0, total_word_trigram_count = 0;
     size_t total_char_bigram_count = 0, total_char_trigram_count = 0;
     size_t word_bigram_count = 0, word_trigram_count = 0;
     size_t char_bigram_count = 0, char_trigram_count = 0;
+    
+    /*ofstream("word_bigrams.txt", ios::trunc).close();
+    ofstream("word_trigrams.txt", ios::trunc).close();
+    ofstream("char_bigrams.txt", ios::trunc).close();
+    ofstream("char_trigrams.txt", ios::trunc).close(); */
 
     vector<fs::path> base_files;
     for (const auto& entry : fs::directory_iterator(folder)) {
@@ -421,11 +332,9 @@ int main() {
         vector<double> par_test_times;
 
         cout << "PARALLEL EXECUTION" << endl;
-
         // Find the optimal number of threads: Testing with variable number of threads.
         // Increasing threads does not always mean improving performance! There may be synchronization overheads.
         // If the number of threads is greater than the available cores, you may get worse times due to context switching.
-
         ofstream csv_file_threads("speedup_variable_threads.csv");
         csv_file_threads << "Threads,Execution Time,Speedup\n";
 
@@ -466,6 +375,7 @@ int main() {
         logfile << "EXPERIMENT 2: Benchmarking Sequential and Parallel Execution with various text sizes \n\n";
 
         // SEQUENTIAL
+        cout << "SEQUENTIAL EXECUTION" << endl;
         for (int i = 0; i < text_size_length; ++i) {
             vector<double> seq_times;
             logfile << "Sequential - Text size: " << text_size[i] * folder_size_MB << "MB\n";
@@ -486,6 +396,7 @@ int main() {
         }
 
         // PARALLEL
+        cout << "PARALLEL EXECUTION" << endl;
         omp_set_num_threads(max_threads);
         ofstream csv_file_size("speedup_variable_size.csv");
         csv_file_size << "Text Size(MB),Parallel Time,Speedup\n";
