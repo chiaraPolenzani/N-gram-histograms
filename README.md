@@ -1,14 +1,15 @@
-# Elaborato OpenMP — Calcolo di N-grammi
+# N-gram Computation - OpenMP Project
 
-Questo progetto in C++ utilizza OpenMP per analizzare grandi collezioni di testi e calcolare **n-grammi** di parole e caratteri (bigrammi, trigrammi, ecc.). 
+This C++ project uses OpenMP to analyze large collections of text and compute n-grams of words and characters 
+(bigrams, trigrams, etc.).
 
-## 🔧 Requisiti
+## 🔧 Requirements
 
 - CMake
-- Compiler compatibile con OpenMP 
-- [CLion](https://www.jetbrains.com/clion/) (opzionale, per sviluppo)
-
-## 🛠️ Compilazione
+- Compiler compatible with OpenMP
+- [CLion](https://www.jetbrains.com/clion/) (optional, for development)
+  
+## 🛠️ Build Instructions
 
 ```bash
 mkdir build
@@ -18,16 +19,18 @@ mingw32-make
 
 ```
 
-## ▶️ Esecuzione
+## ▶️ Execution
 ``` ./elaborato_OpenMP.exe ```
 
-## ⚙️ Esperimenti
+## ⚙️ Experiments
 
-Nel file main.cpp è presente una variabile booleana experiment1:
+In main.cpp, there's a boolean variable named experiment1:
 
-experiment1 = true → Esperimento 1: misura lo speedup in funzione del numero di thread. Il numero di file di testo è fisso.
+experiment1 = true → Experiment 1: measures speedup as a function of the number of threads. The number of text files is fixed.
 
-experiment1 = false → Esperimento 2: mantiene costante il numero di thread e aumenta il numero di file di testo analizzati.
+experiment1 = false → Experiment 2: keeps the number of threads constant and increases the number of text files analyzed.
 
-🔁 Il codice utilizza una funzione generica per il calcolo degli n-grammi, quindi è sufficiente cambiare il valore di n per calcolare quadgrammi, 5-grammi, ecc., 
-sia per caratteri che per parole.
+🔁 The code uses a generic function to compute n-grams, so you can simply change the value of n 
+to compute 4-grams, 5-grams, etc., both for characters and words.
+
+
