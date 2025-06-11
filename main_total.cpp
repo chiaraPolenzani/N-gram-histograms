@@ -9,6 +9,7 @@
 #include <omp.h>
 #include <numeric>
 #include <thread>
+#include <iomanip>
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -283,151 +284,82 @@ uintmax_t GetFolderSizeMB(const string& folder) {
 int main() {
 
 #ifdef _OPENMP
-    cout << "_OPENMP defined" << std::endl;
+    cout << "_OPENMP defined" << endl;
 #endif
 
     const string folder = "../texts";
     uintmax_t folder_size_MB = GetFolderSizeMB(folder);
 
     const int max_threads = thread::hardware_concurrency(); // To test the maximum number of threads available on the pc
-    const int num_thread[12] = {2, 4, 6, max_threads, 10, 12, 14, 16, 18, 20, 22, 24}; // max_threads=8
-    int max_text_iter = 10; // How many times iterate on the text folder
-    int n_test_iter = 10; // How many times repeat the execution to calculate the average
-    const int text_size[6] = {10, 20, 40, 60, 80, 100};
-    int text_size_length = size(text_size);
+    // threads used for testing  = {2, 4, 6, max_threads, 10, 12, 14, 16, 18, 20, 22, 24}; // max_threads=8
+    const int fixed_num_thread = 8; // change this value to observe the speedup of each threads
+    int folder_iter = 10; // How many times iterate on the text folder
+    int n_test_iter = 3; // How many times repeat the execution to calculate the average
+    //const int n_folder_iter[1] = {10}; // EXPERIMENT 1: speedup as the number of threads changes. Text size is 100MB
+    const int n_folder_iter[6] = {10, 20, 30, 40, 50, 60}; //EXPERIMENT 2: keep the number of threads constant (8), increase the total size of the text set.
 
-    ofstream logfile("log.txt", ofstream::trunc);
+    string filename = "log" + to_string(fixed_num_thread) + ".txt";
+    ofstream logfile(filename, ofstream::trunc);
 
-    bool experiment1 = false;
+    // SEQUENTIAL
+    vector<double> sequential_mean_times;
+    
+    for (int i = 0; i < size(n_folder_iter); ++i) {
+        vector<double> seq_times;
+        logfile << "Sequential - Text size: " << n_folder_iter[i] * folder_size_MB << "MB\n";
 
-    if (experiment1 == true) {
-        // EXPERIMENT 1: speedup as the number of threads changes. Text size is 100MB
-        logfile << "EXPERIMENT 1: speedup as the number of threads changes \n";
-
-        // SEQUENTIAL EXECUTION
-        vector<double> seq_test_times;
-        cout << "SEQUENTIAL EXECUTION" << endl;
-
-        // Iterate multiple times to evaluate the average performance
-        for (int test_count = 0; test_count < n_test_iter; test_count++) {
-            logfile << "Test " << test_count << " --> ";
-            double start_time = omp_get_wtime();
-            SequentialExecution(folder, max_text_iter); // iterate on the text folder 10 times
-            double end_time = omp_get_wtime();
-            const double sequential_time = end_time - start_time;
-            logfile << "Sequential execution time: " << sequential_time << " seconds\n\n";
-            seq_test_times.push_back(sequential_time);
+        for (int iter = 0; iter < n_test_iter; iter++) {
+            logfile << "Test " << iter + 1 << ": ";
+            double start = omp_get_wtime();
+            SequentialExecution(folder, n_folder_iter[i]);
+            double end = omp_get_wtime();
+            double sequential_execution_time = end - start;
+            logfile << sequential_execution_time << " sec\n";
+            seq_times.push_back(sequential_execution_time);
         }
 
-        // Evaluate the mean execution time
-        double sum, seq_mean;
-        sum = accumulate(seq_test_times.begin(), seq_test_times.end(), 0.0);
-        //seq_mean = sum / seq_test_times.size();
-        seq_mean = sum / static_cast<double>(seq_test_times.size()); // seq_test_times.size() returns a type size_t -> explicit cast
-        logfile << "Mean sequential execution time : " << seq_mean << endl;
-
-        //double seq_mean = 76;
-
-        // PARALLEL EXECUTION
-        vector<double> par_test_times;
-
-        cout << "PARALLEL EXECUTION" << endl;
-        // Find the optimal number of threads: Testing with variable number of threads.
-        // Increasing threads does not always mean improving performance! There may be synchronization overheads.
-        // If the number of threads is greater than the available cores, you may get worse times due to context switching.
-        ofstream csv_file_threads("speedup_variable_threads.csv");
-        csv_file_threads << "Threads,Execution Time,Speedup\n";
-
-        for (const int &thread_num : num_thread) {
-            omp_set_num_threads(thread_num);
-            cout << "----------- Num used threads: " << thread_num << " -----------\n";
-            logfile << "NUM THREADS: " << thread_num << "\n";
-
-            // Iterate multiple times to evaluate the average performance
-            for (int test_count = 0; test_count < n_test_iter; test_count++) {
-                logfile << "Test " << test_count << " --> \n";
-                double start_time = omp_get_wtime();
-                ParallelExecution(folder, max_text_iter);
-                double end_time = omp_get_wtime();
-                const double parallel_time = end_time - start_time;
-                logfile << "Parallel execution time: " << parallel_time << " seconds\n\n";
-                par_test_times.push_back(parallel_time);
-            }
-
-            // Evaluate the mean execution time
-            double par_sum, par_mean;
-            par_sum = accumulate(par_test_times.begin(), par_test_times.end(), 0.0);
-            par_mean = par_sum / static_cast<double>(par_test_times.size());
-            logfile << "Mean parallel execution time: " << par_mean << " seconds\n\n";
-
-            double speedup = seq_mean / par_mean;
-            logfile << "Speedup: " << speedup << "\n\n";
-            csv_file_threads << thread_num << "," << par_mean << "," << speedup << "\n";
-        }
-
-        csv_file_threads.close();
-
-    } else {
-
-        //EXPERIMENT 2: keep the number of threads constant = 8. increase the total size of the text set.
-
-        vector<double> sequential_mean_times;
-        logfile << "EXPERIMENT 2: Benchmarking Sequential and Parallel Execution with various text sizes \n\n";
-
-        // SEQUENTIAL
-        cout << "SEQUENTIAL EXECUTION" << endl;
-        for (int i = 0; i < text_size_length; ++i) {
-            vector<double> seq_times;
-            logfile << "Sequential - Text size: " << text_size[i] * folder_size_MB << "MB\n";
-
-            for (int test = 0; test < n_test_iter; ++test) {
-                logfile << "Test " << test + 1 << ": ";
-                double start = omp_get_wtime();
-                SequentialExecution(folder, text_size[i]);
-                double end = omp_get_wtime();
-                double sequential_execution_time = end - start;
-                logfile << sequential_execution_time << " sec\n";
-                seq_times.push_back(sequential_execution_time);
-            }
-
-            double mean_seq = accumulate(seq_times.begin(), seq_times.end(), 0.0) / n_test_iter;
-            sequential_mean_times.push_back(mean_seq);
-            logfile << "Mean sequential execution time: " << mean_seq << " sec\n\n";
-        }
-
-        // PARALLEL
-        cout << "PARALLEL EXECUTION" << endl;
-        omp_set_num_threads(max_threads);
-        ofstream csv_file_size("speedup_variable_size.csv");
-        csv_file_size << "Text Size(MB),Parallel Time,Speedup\n";
-
-        for (int i = 0; i < text_size_length; ++i) {
-            vector<double> par_times;
-            logfile << "Parallel - Text size: " << text_size[i] * folder_size_MB << "MB\n";
-
-            for (int test = 0; test < n_test_iter; ++test) {
-                logfile << "Test " << test + 1 << ": ";
-                double start = omp_get_wtime();
-                ParallelExecution(folder, text_size[i]);
-                double end = omp_get_wtime();
-                double parallel_time = end - start;
-                logfile << parallel_time << " sec\n";
-                par_times.push_back(parallel_time);
-            }
-
-            double par_mean = accumulate(par_times.begin(), par_times.end(), 0.0) / n_test_iter;
-            double speedup = sequential_mean_times[i] / par_mean;
-            logfile << "Mean parallel execution time: " << par_mean << " sec\n";
-            logfile << "Speedup: " << speedup << "x\n\n";
-
-            csv_file_size << (text_size[i] * folder_size_MB) << "," << par_mean << "," << speedup << "\n";
-        }
-
-        csv_file_size.close();
+        double mean_seq = accumulate(seq_times.begin(), seq_times.end(), 0.0) / n_test_iter;
+        sequential_mean_times.push_back(mean_seq);
+        logfile << "Mean sequential execution time: " << mean_seq << " sec\n\n";
     }
+
+    // PARALLEL
+    omp_set_num_threads(max_threads);
+    //omp_set_num_threads(fixed_num_thread);
+    ofstream csv_file_size("speedup_variable_size.csv");
+    csv_file_size << "Text Size(MB),Parallel Time,Speedup\n";
+
+    for (int i = 0; i < size(n_folder_iter); ++i) {
+        vector<double> par_times;
+        logfile << "Parallel - Text size: " << n_folder_iter[i] * folder_size_MB << "MB\n";
+
+        for (int iter = 0; iter < n_test_iter; iter++) {
+            logfile << "Test " << iter + 1 << ": ";
+            double start = omp_get_wtime();
+            ParallelExecution(folder, n_folder_iter[i]);
+            double end = omp_get_wtime();
+            double parallel_time = end - start;
+            logfile << parallel_time << " sec\n";
+            par_times.push_back(parallel_time);
+        }
+
+        double par_sum = accumulate(par_times.begin(), par_times.end(), 0.0);
+        logfile << "sum: " << par_sum << " seconds\n\n";
+        double par_mean = par_sum / static_cast<double>(par_times.size());
+        double speedup = sequential_mean_times[i] / par_mean;
+        logfile << "Mean parallel execution time: " << par_mean << " sec\n";
+        logfile << fixed << setprecision(2);
+        logfile << "Speedup: " << speedup << "x\n\n";
+
+        csv_file_size << (n_folder_iter[i] * folder_size_MB) << "," << par_mean << "," << speedup << "\n";
+    }
+
+    csv_file_size.close();
 
     logfile.close();
 
     return 0;
 }
+
+   
 
